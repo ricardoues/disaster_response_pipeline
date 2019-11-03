@@ -217,13 +217,12 @@ def build_model():
     
     
     # Number of trees in random forest
-    #n_estimators = [10 , 50 , 100]
-    n_estimators = [100]
+    n_estimators = [10 , 50 , 100]    
     # Maximum number of features 
     max_features = ['sqrt']
     # Maximum number of levels in tree
-    #max_depth = [2, 5, 8, 10]
-    max_depth = [2]
+    max_depth = [2, 5, 8, 10]
+
     
     # Method of selecting samples for training each tree
     bootstrap = [True, False]
