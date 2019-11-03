@@ -15,18 +15,13 @@ from sklearn.feature_extraction.text import TfidfTransformer
 # scikit-learn libraries 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
 from sklearn.multioutput import MultiOutputClassifier
+from sklearn.pipeline import Pipeline, FeatureUnion
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.metrics import classification_report
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import precision_score,  make_scorer
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import AdaBoostClassifier
 
-
-# we use imbalanced-learn library to deal with the imbalanced dataset 
-from imblearn.pipeline import Pipeline as ImbPipeLine
-from imblearn.ensemble import RUSBoostClassifier
 
 # to save and load scikit-learn models
 import pickle 
@@ -73,52 +68,6 @@ emoticons_sad = set([
 emoticons = emoticons_happy.union(emoticons_sad)
 
 
-def drop_constant_columns(df):    
-    """ Drops constant value columns of pandas dataframe.
-    
-    Parameters: 
-        df (pandas dataframe): A pandas dataframe.
-        
-    Returns:
-        result (pandas dataframe): A pandas dataframe without constant value columns.
-    
-    """
-    result = df.copy()
-    for column in df.columns:
-        if len(df[column].unique()) == 1:
-            result = result.drop(column,axis=1)
-    return result
-
-
-def get_precision_recall(Y_test, Y_pred):
-    
-    """ Returns precisions and recalls across the categories.
-    
-    Parameters: 
-        Y_test (numpy array): Y observed 
-        Y_pred (numpy array): Y predicted 
-        
-    Returns: 
-        precisions (list): list containing the values of precision in each category.
-        recalls (list): list containing the values of recalls in each category.
-    
-    """
-    
-    precisions = []
-    recalls = [] 
-                
-    for col in range(Y_pred.shape[1]):
-        out = classification_report(Y_test[:, col],  Y_pred[:, col], output_dict=True)
-        
-        if '1' in out.keys():
-            precisions.append(out['1']['precision'])
-            recalls.append(out['1']['recall'])
-        
-    return precisions, recalls
-
-
-
-
 def load_data(database_filepath):    
     """ Returns the data for training the disaster response pipeline. 
     
@@ -135,7 +84,6 @@ def load_data(database_filepath):
     df = pd.read_sql_table('Message', engine)
     X = df.message.values    
     Y = df.iloc[:, 4:]     
-    Y = drop_constant_columns(Y) # we have to remove constant values in the categories 
         
     categories = Y.columns
     categories = categories.tolist()
@@ -208,6 +156,41 @@ def tokenize(text):
     return words     
     
 
+    
+class LengthExtractor(BaseEstimator, TransformerMixin):
+    
+    """ This class is a transformer that will be used in a Pipeline to extract the lenght of the tweets.
+    
+    """
+        
+    def fit(self, X, y=None):
+        """ Fit method 
+    
+        Parameters:
+            self: the self object. 
+            X : input variables
+            y : output variables
+    
+        Returns: 
+            self: the self object. 
+    """         
+        
+        return self
+
+    def transform(self, X):
+        """ Transform method 
+    
+        Parameters:
+            self: the self object. 
+            X : input variables
+    
+        Returns: 
+            A 2d-numpy array containing the length of the tweets. 
+    """                 
+        
+        return pd.Series(X).apply(lambda x: len(x)).values[:, None]
+    
+    
 
 def build_model():
     """ Returns a GridSearchCV object.
@@ -216,24 +199,43 @@ def build_model():
     
     """ 
     
+    pipeline = Pipeline([
+        ('features', FeatureUnion([
+        
+            ('text_pipeline', Pipeline([
+                ('vect', CountVectorizer(tokenizer=tokenize)), 
+                ('tfidf', TfidfTransformer())            
+            ])), 
+        
+            ('text_length',  LengthExtractor()) 
+                
+            ])), 
     
-    base_estimator = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=1), random_state=25)    
+            ('clf', MultiOutputClassifier(RandomForestClassifier(random_state=25, class_weight='balanced', n_jobs=-1)))     
+        ])
     
-    pipeline = ImbPipeLine([
-    ('vec', CountVectorizer(tokenizer=tokenize)), 
-    ('tfidf', TfidfTransformer()), 
-    ('clf', MultiOutputClassifier( RUSBoostClassifier(base_estimator=base_estimator, random_state=25) ) )     
- ])
     
-    n_estimators = [5, 10 , 15 ]
-    learning_rate = [0.1, 0.5, 1,  10]
+    
+    # Number of trees in random forest
+    #n_estimators = [10 , 50 , 100]
+    n_estimators = [100]
+    # Maximum number of features 
+    max_features = ['sqrt']
+    # Maximum number of levels in tree
+    #max_depth = [2, 5, 8, 10]
+    max_depth = [2]
+    
+    # Method of selecting samples for training each tree
+    bootstrap = [True, False]
     
     parameters = {        
-    'clf__estimator__n_estimators': n_estimators,
-    'clf__estimator__learning_rate': learning_rate,
-}
+        'clf__estimator__n_estimators': n_estimators,
+        'clf__estimator__max_features': max_features,
+        'clf__estimator__max_depth': max_depth,
+        'clf__estimator__bootstrap': bootstrap     
+     }
 
-    cv = GridSearchCV(estimator=pipeline, param_grid=parameters, scoring=prec_score_multiclass,  cv=3,   verbose=25, n_jobs=-1)
+    cv = GridSearchCV(estimator=pipeline, param_grid=parameters, scoring=prec_score_multiclass,  cv=3,   verbose=25, n_jobs=-1)    
 
     return cv 
 
@@ -253,7 +255,7 @@ def evaluate_model(model, X_test, Y_test, category_names):
     
 
 
-def save_model(model, model_filepath):
+def save_model(model, model_filepath):    
     """ Save the model.
     
     Parameters: model : a model built with the package scikit-learn or imb-learn
@@ -266,6 +268,7 @@ def save_model(model, model_filepath):
     pickle.dump(model, open(model_filepath, 'wb'))
     
     
+
 
 def main():
     if len(sys.argv) == 3:
