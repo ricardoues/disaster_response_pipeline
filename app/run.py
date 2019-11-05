@@ -6,6 +6,9 @@ import pandas as pd
 from flask import Flask
 from flask import render_template, request, jsonify
 from plotly.graph_objs import Bar
+from plotly.graph_objs import Histogram
+from plotly.graph_objs import Box
+
 
 import sys
 
@@ -187,37 +190,53 @@ model = pickle.load(open("../models/classifier.pkl", 'rb'))
 @app.route('/index')
 def index():
     
-    # extract data needed for visuals
-    # TODO: Below is an example - modify to extract data for your own visuals
+    # extract data needed for visuals    
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
+    length_tweets = df["message"].apply(lambda x: len(x))
+    
+    
     
     # create visuals
-    # TODO: Below is an example - modify to create your own visuals
-    graphs = [
-        {
-            'data': [
-                Bar(
-                    x=genre_names,
-                    y=genre_counts
-                )
-            ],
+    
+    graph_one = []
+    
+    graph_one.append(
+           Bar(
+                  x=genre_names,
+                  y=genre_counts
+              )                
+    )
+    
+    layout_one = dict(title = 'Distribution of Message Genres',
+                      xaxis = dict(title = "Genre"),
+                      yaxis = dict(title = "Count")        
+    )
+    
+    
+    graph_two = []
+    
+    graph_two.append(
+           Histogram(
+                  x=length_tweets                 
+              )                
+    )
+    
 
-            'layout': {
-                'title': 'Distribution of Message Genres',
-                'yaxis': {
-                    'title': "Count"
-                },
-                'xaxis': {
-                    'title': "Genre"
-                }
-            }
-        }
-    ]
+    layout_two = dict(title = 'Distribution of length of the tweets',
+                      xaxis = dict(title = "Lenght of the tweets"),
+                      yaxis = dict(title = "Frecuency")        
+    )
+        
+    
+    figures = []
+    figures.append(dict(data=graph_one, layout=layout_one))
+    figures.append(dict(data=graph_two, layout=layout_two))
+    
     
     # encode plotly graphs in JSON
-    ids = ["graph-{}".format(i) for i, _ in enumerate(graphs)]
-    graphJSON = json.dumps(graphs, cls=plotly.utils.PlotlyJSONEncoder)
+    ids = ["graph-{}".format(i) for i, _ in enumerate(figures)]
+    graphJSON = json.dumps(figures, cls=plotly.utils.PlotlyJSONEncoder)
     
     # render web page with plotly graphs
     return render_template('master.html', ids=ids, graphJSON=graphJSON)
