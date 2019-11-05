@@ -50,6 +50,9 @@ There is a video that shows the web app in the following link:
 ### References
 
 [TF-IDF pipeline](https://medium.com/@chrisfotache/text-classification-in-python-pipelines-nlp-nltk-tf-idf-xgboost-and-more-b83451a327e0)
+
 [RandomizedSearchCV](https://medium.com/rants-on-machine-learning/smarter-parameter-sweeps-or-why-grid-search-is-plain-stupid-c17d97a0e881)
+
 [Plotly reference](https://plot.ly/python/reference/)
+
 [Deploying a Flask app to heroku](https://stackabuse.com/deploying-a-flask-application-to-heroku/)
